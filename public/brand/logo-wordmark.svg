@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" fill="none">
+  
+  <g>
+    
+    <path d="M16 36 Q16 46 28 46 Q40 46 40 36" stroke="oklch(60% 0.14 40)" stroke-width="2.5" fill="none" stroke-linecap="round"></path>
+    
+    <path d="M22 30 Q20 26 22 22 Q24 18 22 14" stroke="oklch(60% 0.14 40)" stroke-width="2" fill="none" stroke-linecap="round"></path>
+    <path d="M28 28 Q26 23 28 19 Q30 15 28 11" stroke="oklch(76% 0.14 75)" stroke-width="2" fill="none" stroke-linecap="round"></path>
+    <path d="M34 30 Q32 26 34 22 Q36 18 34 14" stroke="oklch(60% 0.14 40)" stroke-width="2" fill="none" stroke-linecap="round"></path>
+    
+    <path d="M18 38 L28 34 L38 38" stroke="oklch(76% 0.14 75)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+  </g>
+  
+  <text x="52" y="37" font-family="Georgia, serif" font-weight="700" font-size="24" fill="oklch(22% 0.02 60)">Meal</text>
+  <text x="104" y="37" font-family="Georgia, serif" font-weight="700" font-size="24" fill="oklch(60% 0.14 40)">Swift</text>
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" fill="none">
+  <rect width="56" height="56" rx="14" fill="oklch(60% 0.14 40)"></rect>
+  
+  <rect width="56" height="56" rx="14" fill="url(#grad)" opacity="0.4"></rect>
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="white" stop-opacity="0.2"></stop>
+      <stop offset="100%" stop-color="black" stop-opacity="0.1"></stop>
+    </linearGradient>
+  </defs>
+  
+  <path d="M9 28 L11 44 Q11 46 14 46 L24 46 Q27 46 27 44 L29 28 Z" fill="oklch(97% 0.02 80)" opacity="0.95"></path>
+  
+  <path d="M29 33 Q35 33 35 37 Q35 42 29 42" stroke="oklch(97% 0.02 80)" stroke-width="2.2" fill="none" stroke-linecap="round" opacity="0.95"></path>
+  
+  <ellipse cx="19" cy="29" rx="5" ry="1.8" fill="oklch(62% 0.14 72)" opacity="0.65"></ellipse>
+  
+  <path d="M16 24 Q15 20 16 16" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.55"></path>
+  <path d="M22 24 Q21 20 22 16" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.55"></path>
+  
+  <path d="M28 27 Q33 14 43 16 Q48 19 46 26 Q43 33 35 33 Q28 32 28 27 Z" fill="oklch(76% 0.14 75)" opacity="0.97"></path>
+  
+  <path d="M32 30 Q37 18 43 18" stroke="oklch(82% 0.09 40)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.55"></path>
+  
+  <path d="M28 27 Q26 23 30 20" stroke="oklch(97% 0.02 80)" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"></path>
+  <path d="M46 26 Q49 29 45 32" stroke="oklch(97% 0.02 80)" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.4"></path>
+</svg>
