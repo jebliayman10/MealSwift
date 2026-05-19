@@ -1,0 +1,97 @@
+// MealSwift database schema
+//
+// DEV:  SQLite (zero-infra, works out of the box) — provider below = "sqlite"
+// PROD: Postgres (Vercel Postgres / Neon). To switch:
+//   1. Change provider to "postgresql"
+//   2. Set DATABASE_URL to your Postgres connection string
+//   3. Run: npx prisma migrate deploy
+// No application code changes are required — the data layer is provider-agnostic.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Auth.js (NextAuth) models ───────────────────────────
+// These four models are the contract required by @auth/prisma-adapter.
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  savedRecipes  SavedRecipe[]
+  mealPlan      MealPlanEntry[]
+
+  createdAt     DateTime  @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─────────────────────────── MealSwift app models ───────────────────────────
+
+model SavedRecipe {
+  id        String   @id @default(cuid())
+  userId    String
+  recipeId  String // matches Recipe.id from lib/recipes.ts
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, recipeId])
+  @@index([userId])
+}
+
+model MealPlanEntry {
+  id       String   @id @default(cuid())
+  userId   String
+  recipeId String
+  date     DateTime // the day this meal is planned for
+  slot     String // "breakfast" | "lunch" | "dinner"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}

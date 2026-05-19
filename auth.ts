@@ -1,10 +1,14 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { prisma } from "@/lib/prisma";
 
-const providers = [];
+// Build provider list dynamically so the app boots even before every
+// third-party credential is configured (e.g. first deploy). Each provider is
+// only registered when its real env vars are present.
+const providers: NextAuthConfig["providers"] = [];
 
-// Only add Google if real credentials are configured
 if (
   process.env.GOOGLE_CLIENT_ID &&
   !process.env.GOOGLE_CLIENT_ID.startsWith("REPLACE_")
@@ -17,7 +21,6 @@ if (
   );
 }
 
-// Only add Resend if a real API key is configured
 if (
   process.env.RESEND_API_KEY &&
   !process.env.RESEND_API_KEY.startsWith("REPLACE_")
@@ -25,20 +28,33 @@ if (
   providers.push(
     Resend({
       apiKey: process.env.RESEND_API_KEY,
-      from: "MealSwift <noreply@mealswift.app>",
+      from: process.env.EMAIL_FROM || "MealSwift <onboarding@resend.dev>",
     })
   );
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // The adapter persists users, accounts, sessions and — critically —
+  // email verification tokens. Without it the Resend magic-link provider
+  // throws at runtime the moment a real user submits their email.
+  adapter: PrismaAdapter(prisma),
   providers,
   trustHost: true,
+  session: { strategy: "database" },
   pages: {
     signIn: "/sign-in",
   },
   callbacks: {
+    // Expose the user id on the session so server actions can scope data.
+    session({ session, user }) {
+      if (session.user && user) {
+        session.user.id = user.id;
+      }
+      return session;
+    },
     authorized() {
-      // All pages are public for now — add protected routes here later
+      // All pages are public; data-mutating server actions enforce auth
+      // individually via getCurrentUserId().
       return true;
     },
   },

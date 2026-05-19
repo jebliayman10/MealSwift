@@ -10,6 +10,10 @@ out/
 .env.local
 .env.*.local
 
+# Local SQLite dev database (schema lives in prisma/migrations, which IS tracked)
+prisma/*.db
+prisma/*.db-journal
+
 # Vercel
 .vercel
 

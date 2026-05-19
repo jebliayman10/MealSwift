@@ -1,207 +1,152 @@
-"use client";
-
-import { useState } from "react";
-import { recipes } from "@/lib/recipes";
+import Link from "next/link";
+import { auth } from "@/auth";
+import { getSavedRecipes } from "@/lib/actions";
 import { WebRecipeCard } from "@/components/web/WebRecipeCard";
+import { ProfileSidebar } from "./ProfileSidebar";
 
-const LANGUAGES = [
-  { code: "en", flag: "🇬🇧", label: "English" },
-  { code: "fr", flag: "🇫🇷", label: "French" },
-  { code: "es", flag: "🇲🇽", label: "Spanish" },
-  { code: "de", flag: "🇩🇪", label: "German" },
-  { code: "ja", flag: "🇯🇵", label: "Japanese" },
-  { code: "hi", flag: "🇮🇳", label: "Hindi" },
-  { code: "ar", flag: "🇸🇦", label: "Arabic" },
-  { code: "zh", flag: "🇨🇳", label: "Chinese" },
-  { code: "pt", flag: "🇧🇷", label: "Portuguese" },
-  { code: "it", flag: "🇮🇹", label: "Italian" },
-];
+// Always render fresh — saved recipes change per request/user.
+export const dynamic = "force-dynamic";
 
-const TABS = ["Saved", "Created", "History"];
+export default async function ProfilePage() {
+  const session = await auth();
 
-const SAVED_RECIPES = recipes.slice(0, 6);
-const CREATED_RECIPES = recipes.slice(2, 4);
-const HISTORY_RECIPES = recipes.slice(0, 5);
+  // ── Signed-out state ──────────────────────────────────────────
+  if (!session?.user) {
+    return (
+      <div
+        style={{
+          minHeight: "60vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          gap: 16,
+          padding: 24,
+        }}
+      >
+        <span style={{ fontSize: 48 }}>👩‍🍳</span>
+        <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>
+          Sign in to see your profile
+        </h1>
+        <p style={{ color: "var(--stone-500)", maxWidth: 360, margin: 0 }}>
+          Save recipes, build meal plans, and pick up where you left off.
+        </p>
+        <Link
+          href="/sign-in"
+          style={{
+            marginTop: 8,
+            padding: "12px 28px",
+            borderRadius: 12,
+            background: "#f97316",
+            color: "#fff",
+            fontWeight: 700,
+            textDecoration: "none",
+          }}
+        >
+          Sign in
+        </Link>
+      </div>
+    );
+  }
 
-export default function ProfilePage() {
-  const [activeTab, setActiveTab] = useState("Saved");
-  const [activeLang, setActiveLang] = useState("en");
-
-  const displayedRecipes =
-    activeTab === "Saved"
-      ? SAVED_RECIPES
-      : activeTab === "Created"
-      ? CREATED_RECIPES
-      : HISTORY_RECIPES;
+  // ── Signed-in state ───────────────────────────────────────────
+  const saved = await getSavedRecipes();
+  const user = session.user;
+  const firstName = user.name?.split(" ")[0] ?? "there";
+  const initial = (user.name ?? user.email ?? "?").charAt(0).toUpperCase();
 
   return (
     <>
-      {/* ── Hero ─────────────────────────────────────── */}
       <section className="profile-hero">
         <div className="profile-hero-inner">
           <div className="profile-avatar-ring">
-            <div className="profile-avatar-inner">👩‍🍳</div>
+            <div className="profile-avatar-inner">
+              {user.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image}
+                  alt={user.name ?? "Profile"}
+                  style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : (
+                <span style={{ fontSize: 32, fontWeight: 800 }}>{initial}</span>
+              )}
+            </div>
           </div>
           <div className="profile-hero-info">
-            <h1 className="profile-display-name">Alex Chen</h1>
-            <p className="profile-bio">Home cook · food explorer · perpetual recipe tweaker</p>
+            <h1 className="profile-display-name">{user.name ?? firstName}</h1>
+            <p className="profile-bio">{user.email}</p>
             <div className="profile-stats-row">
               <div className="profile-stat-item">
-                <div className="profile-stat-value">42</div>
+                <div className="profile-stat-value">{saved.length}</div>
                 <div className="profile-stat-label">Saved</div>
-              </div>
-              <div className="profile-stat-item">
-                <div className="profile-stat-value">7</div>
-                <div className="profile-stat-label">Created</div>
-              </div>
-              <div className="profile-stat-item">
-                <div className="profile-stat-value">128</div>
-                <div className="profile-stat-label">Cooked</div>
-              </div>
-              <div className="profile-stat-item">
-                <div className="profile-stat-value">🔥 14</div>
-                <div className="profile-stat-label">Day streak</div>
               </div>
             </div>
           </div>
-          <button className="profile-edit-btn">Edit profile</button>
+          <form
+            action={async () => {
+              "use server";
+              const { signOut } = await import("@/auth");
+              await signOut({ redirectTo: "/home" });
+            }}
+          >
+            <button className="profile-edit-btn" type="submit">
+              Sign out
+            </button>
+          </form>
         </div>
       </section>
 
-      {/* ── Layout ───────────────────────────────────── */}
       <div className="profile-layout">
-        {/* Sidebar */}
-        <aside className="profile-sidebar">
-          {/* Language preferences */}
-          <div className="profile-sidebar-section">
-            <div className="profile-sidebar-section-title">Recipe language</div>
-            <div className="profile-lang-grid">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang.code}
-                  className={`profile-lang-btn${activeLang === lang.code ? " active" : ""}`}
-                  onClick={() => setActiveLang(lang.code)}
-                >
-                  <span>{lang.flag}</span>
-                  <span>{lang.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+        <ProfileSidebar />
 
-          {/* Dietary preferences */}
-          <div className="profile-sidebar-section">
-            <div className="profile-sidebar-section-title">Dietary preferences</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "Vegetarian", active: false },
-                { label: "Gluten-free", active: false },
-                { label: "Dairy-free", active: false },
-                { label: "Low-calorie", active: true },
-              ].map(({ label, active }) => (
-                <label
-                  key={label}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    fontSize: 14,
-                    color: "var(--stone-700)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {label}
-                  <div style={{
-                    width: 36, height: 20,
-                    background: active ? "var(--terra)" : "var(--stone-200)",
-                    borderRadius: "9999px",
-                    position: "relative",
-                    transition: "background 200ms",
-                    flexShrink: 0,
-                  }}>
-                    <div style={{
-                      position: "absolute",
-                      top: 2,
-                      left: active ? 18 : 2,
-                      width: 16, height: 16,
-                      borderRadius: "50%",
-                      background: "white",
-                      boxShadow: "0 1px 3px oklch(22% 0.02 60 / 0.20)",
-                      transition: "left 200ms var(--ease-spring)",
-                    }} />
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* App settings */}
-          <div className="profile-sidebar-section">
-            <div className="profile-sidebar-section-title">Notifications</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {[
-                { label: "Daily recipe pick", active: true },
-                { label: "Community likes", active: true },
-                { label: "Weekly digest", active: false },
-              ].map(({ label, active }) => (
-                <label
-                  key={label}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    fontSize: 14,
-                    color: "var(--stone-700)",
-                    fontWeight: 500,
-                  }}
-                >
-                  {label}
-                  <div style={{
-                    width: 36, height: 20,
-                    background: active ? "var(--terra)" : "var(--stone-200)",
-                    borderRadius: "9999px",
-                    position: "relative",
-                    flexShrink: 0,
-                  }}>
-                    <div style={{
-                      position: "absolute",
-                      top: 2,
-                      left: active ? 18 : 2,
-                      width: 16, height: 16,
-                      borderRadius: "50%",
-                      background: "white",
-                      boxShadow: "0 1px 3px oklch(22% 0.02 60 / 0.20)",
-                    }} />
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* Main content */}
         <div className="profile-content">
           <div className="profile-tabs">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                className={`profile-tab${activeTab === tab ? " active" : ""}`}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab === "Saved" && `Saved (${SAVED_RECIPES.length})`}
-                {tab === "Created" && `Created (${CREATED_RECIPES.length})`}
-                {tab === "History" && `History (${HISTORY_RECIPES.length})`}
-              </button>
-            ))}
+            <button className="profile-tab active">Saved ({saved.length})</button>
           </div>
 
-          <div className="profile-recipes-grid">
-            {displayedRecipes.map((recipe) => (
-              <WebRecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </div>
+          {saved.length === 0 ? (
+            <div
+              style={{
+                padding: "60px 24px",
+                textAlign: "center",
+                color: "var(--stone-500)",
+              }}
+            >
+              <span style={{ fontSize: 40 }}>🔖</span>
+              <p style={{ marginTop: 12, fontWeight: 600 }}>No saved recipes yet</p>
+              <p style={{ fontSize: 14, marginTop: 4 }}>
+                Tap the bookmark on any recipe to save it here.
+              </p>
+              <Link
+                href="/home"
+                style={{
+                  display: "inline-block",
+                  marginTop: 16,
+                  padding: "10px 22px",
+                  borderRadius: 10,
+                  background: "#f97316",
+                  color: "#fff",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Browse recipes
+              </Link>
+            </div>
+          ) : (
+            <div className="profile-recipes-grid">
+              {saved.map((recipe) => (
+                <WebRecipeCard
+                  key={recipe.id}
+                  recipe={recipe}
+                  initialSaved
+                  isAuthed
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>
