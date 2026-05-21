@@ -110,7 +110,16 @@ export default function MarketingHome() {
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </span>
-          <Link href="/home" className="nav-cta">Open the app →</Link>
+          <Link
+            href="/sign-in"
+            className="nav-link"
+            style={{ fontWeight: 600 }}
+          >
+            Sign in
+          </Link>
+          <Link href="/sign-in" className="nav-cta">
+            Sign up free
+          </Link>
         </div>
       </nav>
 
