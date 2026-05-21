@@ -112,13 +112,23 @@ export default function CommunityPage() {
       <section className="community-hero">
         <div className="community-hero-inner">
           <div>
-            <h1 className="community-page-title">Your Creations</h1>
+            <h1 className="community-page-title">Community</h1>
             <p className="community-page-sub">
-              See what the MealSwift community is cooking up this week.
+              See what other MealSwift cooks are making. Posting is{" "}
+              <strong>coming soon</strong> — feed below is a preview.
             </p>
           </div>
-          <button className="community-post-btn">
-            + Share a Creation
+          <button
+            className="community-post-btn"
+            disabled
+            aria-disabled="true"
+            title="Sharing your own creations is coming soon"
+            style={{
+              opacity: 0.5,
+              cursor: "not-allowed",
+            }}
+          >
+            + Share a Creation (soon)
           </button>
         </div>
       </section>

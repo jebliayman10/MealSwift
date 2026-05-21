@@ -2209,7 +2209,10 @@
   .pantry-results-grid { grid-template-columns: 1fr; }
   .explore-regions-grid { grid-template-columns: 1fr; }
   .profile-recipes-grid { grid-template-columns: 1fr; }
-  .recipe-detail-stats-strip { grid-template-columns: repeat(4, 1fr); }
+  /* Stay at 2 cols on phones — 4 narrow tiles caused horizontal overflow */
+  .recipe-detail-stats-strip { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .recipe-stat-tile { padding: 14px 10px; }
+  .recipe-stat-tile-value { font-size: 22px; }
   .calendar-day-label:nth-child(n+6) { display: none; }
   .calendar-grid { grid-template-columns: repeat(5, 1fr); }
 }
