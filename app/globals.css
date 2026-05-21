@@ -59,6 +59,11 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Global safety net: nothing should ever cause the page to scroll sideways.
+   If a specific element legitimately needs horizontal scroll, it should set
+   overflow-x:auto on itself, not let it bubble up to the body. */
+html, body { max-width: 100vw; overflow-x: hidden; }
+
 html { font-size: 16px; -webkit-text-size-adjust: 100%; }
 
 body {
