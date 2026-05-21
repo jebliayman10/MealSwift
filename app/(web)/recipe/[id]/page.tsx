@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { recipes, getRecipe } from "@/lib/recipes";
+import { recipes, getRecipe, recipeImage } from "@/lib/recipes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -27,7 +27,7 @@ export default async function WebRecipePage({
       <section className="recipe-detail-hero" style={{ background: recipe.gradient }}>
         {/* Real food photo */}
         <img
-          src={`https://images.unsplash.com/${recipe.photo}?w=1400&q=85&fit=crop`}
+          src={recipeImage(recipe, 1400)}
           alt={recipe.name}
           style={{
             position: "absolute",

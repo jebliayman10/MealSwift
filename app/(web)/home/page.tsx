@@ -4,15 +4,14 @@
 import { useState, useRef, KeyboardEvent } from "react";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
-import { recipes, featured } from "@/lib/recipes";
+import { recipes, featured, recipeImage } from "@/lib/recipes";
 import { ClockIcon, StarIcon, SearchIcon } from "@/components/Icons";
 import { Tag } from "@/components/Tag";
-import { Globe } from "@/components/website/Globe";
 import { WebRecipeCard } from "@/components/web/WebRecipeCard";
+import { CuisineGrid } from "@/components/web/CuisineGrid";
 
 const QUICK_ADDS = ["tomatoes", "eggs", "pasta", "chicken", "garlic", "spinach"];
 
-const GLOBAL_RECIPES = recipes.filter((r) => r.tags.includes("global")).slice(0, 3);
 const QUICK_RECIPES = recipes.filter((r) => r.tags.includes("quick")).slice(0, 3);
 
 const COMMUNITY_POSTS = [
@@ -114,7 +113,7 @@ export default function HomePage() {
           <Link href={`/recipe/${featured.id}`} className="featured-card">
             <div className="featured-card-hero" style={{ position: "relative", overflow: "hidden" }}>
               <img
-                src={`https://images.unsplash.com/${featured.photo}?w=900&q=80&fit=crop`}
+                src={recipeImage(featured, 900)}
                 alt={featured.name}
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", filter: "sepia(5%) saturate(115%)" }}
                 loading="lazy"
@@ -254,40 +253,13 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* ── Global Explore ──────────────────────────────── */}
+        {/* ── Explore by cuisine ──────────────────────────── */}
         <section className="web-section" style={{ paddingTop: 0 }}>
           <div className="web-section-header">
-            <h2 className="web-section-title">Explore the world</h2>
-            <Link href="/explore" className="web-section-link">Open globe →</Link>
+            <h2 className="web-section-title">Explore by cuisine</h2>
+            <Link href="/explore" className="web-section-link">See all →</Link>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "center" }}>
-            <div className="recipe-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              {GLOBAL_RECIPES.map((recipe) => (
-                <WebRecipeCard key={recipe.id} recipe={recipe} heroHeight={160} />
-              ))}
-            </div>
-            <div style={{
-              background: "linear-gradient(135deg, #0d1117, #1a2332)",
-              borderRadius: "var(--radius-xl)",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "24px 16px",
-              gap: 12,
-              minHeight: 320,
-            }}>
-              <Globe width={260} height={260} radius={105} />
-              <Link href="/explore" style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                color: "var(--amber)", fontSize: 13, fontWeight: 700,
-                textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase",
-              }}>
-                Explore all regions →
-              </Link>
-            </div>
-          </div>
+          <CuisineGrid limit={12} />
         </section>
 
         {/* ── Community ───────────────────────────────────── */}

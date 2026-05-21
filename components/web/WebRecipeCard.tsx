@@ -4,7 +4,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Recipe } from "@/lib/recipes";
+import { Recipe, recipeImage } from "@/lib/recipes";
 import { Tag } from "@/components/Tag";
 import { ClockIcon, StarIcon } from "@/components/Icons";
 import { toggleSavedRecipe } from "@/lib/actions";
@@ -76,7 +76,7 @@ export function WebRecipeCard({
           }}
         />
         <img
-          src={`https://images.unsplash.com/${recipe.photo}?w=600&q=80&fit=crop`}
+          src={recipeImage(recipe, 600)}
           alt={recipe.name}
           style={{
             position: "absolute",

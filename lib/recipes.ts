@@ -5,7 +5,8 @@ export interface Recipe {
   name: string;
   emoji: string;
   gradient: string;
-  photo: string;           // Unsplash photo ID
+  photo: string;           // Unsplash photo ID (legacy curated recipes)
+  imageUrl?: string;       // Full image URL (TheMealDB-imported recipes)
   youtubeId: string;       // YouTube video ID to embed
   youtubeTitle: string;    // Channel / video title for attribution
   tags: RecipeTag[];
@@ -17,6 +18,15 @@ export interface Recipe {
   ingredients: { qty: string; name: string }[];
   steps: string[];
   description?: string;
+  source?: string;         // Original recipe URL (for attribution)
+}
+
+/** Returns the best image URL for a recipe — prefers imageUrl, falls back to
+ *  the Unsplash CDN constructed from the legacy `photo` ID. */
+export function recipeImage(r: Recipe, width = 600): string {
+  if (r.imageUrl) return r.imageUrl;
+  if (r.photo) return `https://images.unsplash.com/${r.photo}?w=${width}&q=80&fit=crop`;
+  return "";
 }
 
 export const recipes: Recipe[] = [
@@ -1154,8 +1164,31 @@ export const recipes: Recipe[] = [
   },
 ];
 
+// ── Merge in TheMealDB imports ──────────────────────────────────────────
+// The hand-curated `recipes` above stays as the featured/seed catalog.
+// `importedRecipes` adds ~420 real dishes from TheMealDB with real images.
+import { importedRecipes } from "./recipes.generated";
+recipes.push(...importedRecipes);
+
 export const featured = recipes[0];
 
 export function getRecipe(id: string) {
   return recipes.find((r) => r.id === id);
+}
+
+/** All distinct cuisine/region values currently present in the catalog,
+ *  sorted by recipe count (descending). Used to power the cuisine grid. */
+export function getCuisines(): { name: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of recipes) {
+    if (!r.region) continue;
+    counts.set(r.region, (counts.get(r.region) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function recipesByCuisine(cuisine: string): Recipe[] {
+  return recipes.filter((r) => r.region === cuisine);
 }
