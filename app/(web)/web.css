@@ -2213,8 +2213,14 @@
   .recipe-detail-stats-strip { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .recipe-stat-tile { padding: 14px 10px; }
   .recipe-stat-tile-value { font-size: 22px; }
-  .calendar-day-label:nth-child(n+6) { display: none; }
-  .calendar-grid { grid-template-columns: repeat(5, 1fr); }
+  /* On portrait phones the 7-col grid is unusable — hide it and let the
+     mobile list view (defined below) take over. */
+  .calendar-grid,
+  .calendar-grid-header,
+  .calendar-week-summary { display: none; }
+  .calendar-page { padding: 24px 16px 80px; }
+  .calendar-header { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+  .calendar-header > div { justify-content: center; flex-wrap: wrap; }
 
   /* Profile hero: stack avatar/info/signout vertically on phones so the
      row doesn't force the body wider than the viewport. */
@@ -2235,4 +2241,91 @@
   .web-nav-search-btn { display: none; }
   .web-nav-inner { flex-wrap: wrap; gap: 8px; padding-left: 12px; padding-right: 12px; }
   .web-nav-links { order: 3; width: 100%; justify-content: center; overflow-x: auto; }
+}
+
+/* ── Mobile calendar list view (hidden on desktop, shown ≤640px) ───────── */
+.calendar-mobile-list { display: none; }
+
+@media (max-width: 640px) {
+  .calendar-mobile-list { display: flex; flex-direction: column; gap: 12px; }
+  .calendar-mobile-day {
+    background: white;
+    border: 1px solid var(--linen-dk);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+  }
+  .calendar-mobile-day.today {
+    border-color: var(--terra);
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
+  }
+  .calendar-mobile-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .calendar-mobile-day-name {
+    font-family: var(--font-d);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--stone-900);
+    letter-spacing: -0.01em;
+  }
+  .calendar-mobile-day.today .calendar-mobile-day-name { color: var(--terra); }
+  .calendar-mobile-day-date {
+    font-size: 12px;
+    color: var(--stone-400);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+  .calendar-mobile-add {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--terra);
+    background: var(--terra-pale);
+    border-radius: 999px;
+    padding: 6px 14px;
+    text-decoration: none;
+  }
+  .calendar-mobile-empty {
+    font-size: 13px;
+    color: var(--stone-400);
+    font-style: italic;
+    padding: 6px 0;
+  }
+  .calendar-mobile-meals { display: flex; flex-direction: column; gap: 8px; }
+  .calendar-mobile-meal-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    background: var(--parchment);
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .calendar-mobile-meal-row:active { transform: scale(0.99); }
+  .calendar-mobile-meal-img {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .calendar-mobile-meal-info { flex: 1; min-width: 0; }
+  .calendar-mobile-meal-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--stone-900);
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 }

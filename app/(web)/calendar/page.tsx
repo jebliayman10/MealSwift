@@ -299,6 +299,93 @@ export default function CalendarPage() {
           <span style={{ fontSize: 12, color: "var(--stone-400)", marginLeft: 8, fontStyle: "italic" }}>Click any meal to view or change it</span>
         </div>
 
+        {/* ───────────── Mobile list view (phones, portrait) ───────────── */}
+        {/* The 7-col grid below is unusable on narrow screens, so on mobile
+            we render this clean vertical list of the next 14 days instead. */}
+        <div className="calendar-mobile-list">
+          {Array.from({ length: 14 }).map((_, i) => {
+            const d = new Date(today);
+            d.setDate(today.getDate() + i);
+            const key = padKey(d.getFullYear(), d.getMonth(), d.getDate());
+            const dayMeals = meals[key] ?? [];
+            const isToday = i === 0;
+
+            return (
+              <div
+                key={key}
+                className={`calendar-mobile-day${isToday ? " today" : ""}`}
+              >
+                <div className="calendar-mobile-day-header">
+                  <div>
+                    <div className="calendar-mobile-day-name">
+                      {isToday
+                        ? "Today"
+                        : i === 1
+                          ? "Tomorrow"
+                          : d.toLocaleDateString(undefined, { weekday: "long" })}
+                    </div>
+                    <div className="calendar-mobile-day-date">
+                      {d.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </div>
+                  </div>
+                  {dayMeals.length < 3 && (
+                    <Link
+                      href="/pantry"
+                      className="calendar-mobile-add"
+                      aria-label={`Add meal for ${d.toLocaleDateString()}`}
+                    >
+                      + Add
+                    </Link>
+                  )}
+                </div>
+
+                {dayMeals.length === 0 ? (
+                  <div className="calendar-mobile-empty">
+                    No meals planned — tap “Add” to plan one.
+                  </div>
+                ) : (
+                  <div className="calendar-mobile-meals">
+                    {dayMeals.map((meal, j) => (
+                      <button
+                        key={j}
+                        className={`calendar-mobile-meal-row ${meal.slot}`}
+                        onClick={() =>
+                          setActiveMeal({ ...meal, dateKey: key })
+                        }
+                      >
+                        <img
+                          src={`https://images.unsplash.com/${meal.photo}?w=160&q=70&fit=crop`}
+                          alt=""
+                          className="calendar-mobile-meal-img"
+                        />
+                        <div className="calendar-mobile-meal-info">
+                          <div
+                            className={`calendar-meal-slot ${meal.slot}`}
+                            style={{
+                              fontSize: 10,
+                              padding: "2px 8px",
+                              display: "inline-block",
+                              marginBottom: 4,
+                            }}
+                          >
+                            {meal.slot.toUpperCase()}
+                          </div>
+                          <div className="calendar-mobile-meal-name">
+                            {meal.name}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         {/* Day headers */}
         <div className="calendar-grid-header">
           {DAYS_OF_WEEK.map((d) => <div key={d} className="calendar-day-label">{d}</div>)}

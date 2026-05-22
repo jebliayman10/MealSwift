@@ -77,11 +77,41 @@ export default async function ProfilePage() {
           <div className="profile-hero-info">
             <h1 className="profile-display-name">{user.name ?? firstName}</h1>
             <p className="profile-bio">{user.email}</p>
-            <div className="profile-stats-row">
+            <div className="profile-stats-row" style={{ flexWrap: "wrap", gap: 12 }}>
               <div className="profile-stat-item">
                 <div className="profile-stat-value">{saved.length}</div>
                 <div className="profile-stat-label">Saved</div>
               </div>
+              <Link
+                href="/calendar"
+                className="profile-stat-item"
+                style={{
+                  textDecoration: "none",
+                  background: "var(--terra-pale)",
+                  borderRadius: "var(--radius-lg)",
+                  padding: "12px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  cursor: "pointer",
+                  transition: "transform 0.12s",
+                }}
+                aria-label="Open meal calendar"
+              >
+                <div
+                  className="profile-stat-value"
+                  style={{ color: "var(--terra)" }}
+                >
+                  🗓️
+                </div>
+                <div
+                  className="profile-stat-label"
+                  style={{ color: "var(--terra-dark)" }}
+                >
+                  Meal plan
+                </div>
+              </Link>
             </div>
           </div>
           <form
