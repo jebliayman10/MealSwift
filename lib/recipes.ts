@@ -1171,10 +1171,106 @@ export const recipes: Recipe[] = [
 import { importedRecipes } from "./recipes.generated";
 recipes.push(...importedRecipes);
 
+/** Static fallback used by SSG / non-interactive contexts. Client code
+ *  should prefer pickFeatured() so each visitor sees a different dish. */
 export const featured = recipes[0];
+
+/** Picks a random meal-like recipe with a real image. Stable within one
+ *  React mount when called from useState(() => pickFeatured()). */
+export function pickFeatured(): Recipe {
+  const pool = recipes.filter(
+    (r) =>
+      (r.imageUrl ||
+        (r.photo && r.photo.startsWith("photo-"))) &&
+      r.ingredients.length >= 5 &&
+      r.steps.length >= 3
+  );
+  const arr = pool.length ? pool : recipes;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export function getRecipe(id: string) {
   return recipes.find((r) => r.id === id);
+}
+
+// ─────────────────────────── Ingredient corpus ───────────────────────────
+
+const INGREDIENT_STOP = new Set([
+  "to taste", "for serving", "for garnish", "to serve",
+  "salt", "pepper", "salt and pepper", "water", "oil",
+]);
+
+/** "chicken breast, cubed (1 lb)" → "chicken breast". Drops parens and
+ *  anything after the first comma. */
+export function normalizeIngredient(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .split(",")[0]
+    .trim();
+}
+
+/** Reduce a (possibly multi-word) noun to its singular form so that
+ *  "chicken breasts" and "chicken breast" collapse into one entry. Handles
+ *  the common English plural endings. Conservative — leaves edge cases
+ *  unchanged rather than over-singularising. */
+export function singularize(input: string): string {
+  if (input.length < 4) return input;
+  // -ies → -y  (berries → berry)
+  if (input.endsWith("ies")) return input.slice(0, -3) + "y";
+  // -oes → -o  (tomatoes → tomato, potatoes → potato)
+  if (input.endsWith("oes")) return input.slice(0, -2);
+  // -ches / -shes / -xes / -zes → drop -es
+  if (
+    input.endsWith("ches") ||
+    input.endsWith("shes") ||
+    input.endsWith("xes") ||
+    input.endsWith("zes")
+  ) {
+    return input.slice(0, -2);
+  }
+  // -ss / -us / -is / -os are usually NOT plural ("glass", "cactus", "basis")
+  if (
+    input.endsWith("ss") ||
+    input.endsWith("us") ||
+    input.endsWith("is") ||
+    input.endsWith("os")
+  ) {
+    return input;
+  }
+  // bare -s
+  if (input.endsWith("s")) return input.slice(0, -1);
+  return input;
+}
+
+/** Distinct, frequency-sorted, singularised list of every ingredient name
+ *  that appears in the catalog. Used by the home + pantry autocomplete. */
+export const INGREDIENT_CORPUS: string[] = (() => {
+  const counts = new Map<string, number>();
+  for (const r of recipes) {
+    for (const ing of r.ingredients) {
+      const norm = normalizeIngredient(ing.name);
+      if (!norm || norm.length < 2 || INGREDIENT_STOP.has(norm)) continue;
+      // Singularize the last word — "chicken breasts" → "chicken breast"
+      const parts = norm.split(" ");
+      parts[parts.length - 1] = singularize(parts[parts.length - 1]);
+      const canonical = parts.join(" ");
+      counts.set(canonical, (counts.get(canonical) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, c]) => c >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+})();
+
+/** Returns ingredients matching a typed query, deduped and capped. */
+export function suggestIngredients(query: string, exclude: string[] = [], limit = 8): string[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return INGREDIENT_CORPUS
+    .filter((n) => n.includes(q) && !exclude.includes(n))
+    .slice(0, limit);
 }
 
 /** All distinct cuisine/region values currently present in the catalog,

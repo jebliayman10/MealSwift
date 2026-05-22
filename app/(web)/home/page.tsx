@@ -1,10 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, useMemo, useEffect, KeyboardEvent } from "react";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
-import { recipes, featured, recipeImage } from "@/lib/recipes";
+import { recipes, pickFeatured, recipeImage, suggestIngredients } from "@/lib/recipes";
 import { ClockIcon, StarIcon, SearchIcon } from "@/components/Icons";
 import { Tag } from "@/components/Tag";
 import { WebRecipeCard } from "@/components/web/WebRecipeCard";
@@ -24,17 +24,46 @@ export default function HomePage() {
   const { data: session, status } = useSession();
   const [chips, setChips] = useState<string[]>([]);
   const [inputVal, setInputVal] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Featured pick rotates on each fresh mount (page load). Stable through
+  // re-renders within the same mount so it doesn't flash.
+  const [featured] = useState(() => pickFeatured());
+
+  // Autocomplete suggestions from the shared ingredient corpus
+  const suggestions = useMemo(
+    () => suggestIngredients(inputVal, chips, 6),
+    [inputVal, chips],
+  );
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   const addChip = (val: string) => {
     const trimmed = val.trim().toLowerCase();
     if (trimmed && !chips.includes(trimmed)) setChips((prev) => [...prev, trimmed]);
     setInputVal("");
+    setDropdownOpen(false);
+    inputRef.current?.focus();
   };
   const removeChip = (chip: string) => setChips((prev) => prev.filter((c) => c !== chip));
   const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addChip(inputVal); }
+    if ((e.key === "Enter" || e.key === ",") && inputVal.trim()) {
+      e.preventDefault();
+      addChip(suggestions.length > 0 ? suggestions[0] : inputVal);
+    }
     if (e.key === "Backspace" && !inputVal && chips.length) setChips((prev) => prev.slice(0, -1));
+    if (e.key === "Escape") setDropdownOpen(false);
   };
 
   const findHref = chips.length > 0
@@ -57,8 +86,12 @@ export default function HomePage() {
             Tell us what&apos;s in your kitchen. We&apos;ll find the perfect recipe — no grocery run needed.
           </p>
 
-          {/* Pantry Search Box */}
-          <div className="pantry-search-box">
+          {/* Pantry Search Box (autocomplete from the real ingredient corpus) */}
+          <div
+            className="pantry-search-box"
+            ref={wrapRef}
+            style={{ position: "relative" }}
+          >
             <div
               className="pantry-search-top"
               onClick={() => inputRef.current?.focus()}
@@ -68,12 +101,85 @@ export default function HomePage() {
               <input
                 ref={inputRef}
                 className="pantry-search-input"
-                placeholder={chips.length === 0 ? "Type an ingredient and press Enter…" : "Add another…"}
+                placeholder={chips.length === 0 ? "Type an ingredient (e.g. onion, chicken)…" : "Add another…"}
                 value={inputVal}
-                onChange={(e) => setInputVal(e.target.value)}
+                onChange={(e) => {
+                  setInputVal(e.target.value);
+                  setDropdownOpen(e.target.value.trim().length > 0);
+                }}
                 onKeyDown={handleKey}
+                onFocus={() => { if (inputVal.trim()) setDropdownOpen(true); }}
+                autoComplete="off"
               />
             </div>
+
+            {/* Autocomplete dropdown */}
+            {dropdownOpen && suggestions.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  marginTop: 6,
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  boxShadow: "0 8px 30px rgba(0,0,0,0.10)",
+                  overflow: "hidden",
+                  zIndex: 50,
+                }}
+              >
+                {suggestions.map((s) => {
+                  const q = inputVal.toLowerCase();
+                  const idx = s.indexOf(q);
+                  return (
+                    <button
+                      key={s}
+                      onMouseDown={(e) => { e.preventDefault(); addChip(s); }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "10px 16px",
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 14,
+                        color: "#1a1a1a",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fff7ed")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span style={{ fontSize: 16 }}>🧺</span>
+                      <span style={{ flex: 1 }}>
+                        {idx > -1 ? (
+                          <>
+                            {s.slice(0, idx)}
+                            <strong style={{ color: "#ea580c" }}>{s.slice(idx, idx + q.length)}</strong>
+                            {s.slice(idx + q.length)}
+                          </>
+                        ) : (
+                          s
+                        )}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "#9ca3af",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        ↵ add
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {chips.length > 0 && (
               <div className="pantry-chips-area">
@@ -106,7 +212,7 @@ export default function HomePage() {
         {/* ── Featured Recipe ─────────────────────────────── */}
         <section className="web-section" style={{ paddingBottom: 0 }}>
           <div className="web-section-header">
-            <h2 className="web-section-title">Featured today</h2>
+            <h2 className="web-section-title">We think you&apos;ll like this</h2>
             <Link href={`/recipe/${featured.id}`} className="web-section-link">View recipe →</Link>
           </div>
 
@@ -122,10 +228,11 @@ export default function HomePage() {
               <div className="featured-card-scrim" />
             </div>
             <div className="featured-card-body">
-              <div className="featured-label">✦ Recipe of the day</div>
+              <div className="featured-label">✦ A suggestion for you</div>
               <h3 className="featured-title">{featured.name}</h3>
               <p className="featured-desc">
-                A weeknight classic — deeply flavoured, incredibly simple. On the table in under {featured.minutes} minutes with just a handful of ingredients.
+                {featured.description ??
+                  `${featured.region ? `A ${featured.region} favourite. ` : ""}Ready in about ${featured.minutes} minutes with ${featured.ingredients.length} ingredients.`}
               </p>
               <div className="featured-stats">
                 <div className="featured-stat"><ClockIcon width={16} height={16} style={{ color: "var(--stone-400)" }} />{featured.minutes} min</div>

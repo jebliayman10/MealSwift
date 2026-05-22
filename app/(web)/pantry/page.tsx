@@ -9,42 +9,13 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { recipes, type Recipe } from "@/lib/recipes";
+import {
+  recipes,
+  normalizeIngredient,
+  suggestIngredients,
+  type Recipe,
+} from "@/lib/recipes";
 import { WebRecipeCard } from "@/components/web/WebRecipeCard";
-
-/* ── Ingredient corpus ───────────────────────────────────────────────────
-   Build a deduped list of every ingredient name across the catalog. The
-   typeahead suggests from this so users can only add ingredients that
-   actually appear in some recipe. */
-const STOP = new Set([
-  "to taste", "for serving", "for garnish", "to serve",
-  "salt", "pepper", "salt and pepper", "water", "oil",
-]);
-
-function normalizeIngredient(raw: string): string {
-  // Strip parenthetical notes + after the first comma ("chicken breast, cubed")
-  return raw
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, "")
-    .split(",")[0]
-    .trim();
-}
-
-const INGREDIENT_CORPUS: string[] = (() => {
-  const counts = new Map<string, number>();
-  for (const r of recipes) {
-    for (const ing of r.ingredients) {
-      const n = normalizeIngredient(ing.name);
-      if (!n || n.length < 2 || STOP.has(n)) continue;
-      counts.set(n, (counts.get(n) ?? 0) + 1);
-    }
-  }
-  // Sort by frequency (most-used ingredients surface first in autocomplete)
-  return [...counts.entries()]
-    .filter(([, c]) => c >= 2) // skip one-off names — too noisy
-    .sort((a, b) => b[1] - a[1])
-    .map(([name]) => name);
-})();
 
 /* ── Smart ranking ───────────────────────────────────────────────────────
    For each recipe, compute:
@@ -119,13 +90,10 @@ function PantryContent() {
   const removeChip = (chip: string) => setChips((p) => p.filter((c) => c !== chip));
 
   /* Autocomplete suggestions from the real ingredient corpus */
-  const suggestions = useMemo(() => {
-    const q = inputVal.trim().toLowerCase();
-    if (!q) return [];
-    return INGREDIENT_CORPUS
-      .filter((n) => n.includes(q) && !chips.includes(n))
-      .slice(0, 8);
-  }, [inputVal, chips]);
+  const suggestions = useMemo(
+    () => suggestIngredients(inputVal, chips, 8),
+    [inputVal, chips]
+  );
 
   const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === "Enter" || e.key === ",") && inputVal.trim()) {
