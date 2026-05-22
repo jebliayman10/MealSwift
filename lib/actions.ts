@@ -194,14 +194,41 @@ export async function generateWeekPlan(
     where: { userId, date: { gte: days[0], lte: last } },
   });
 
-  // Pick balanced recipes by tag for each slot.
+  // Filter helpers: don't suggest ice cream for lunch, don't suggest solo
+  // sides as dinner, etc. A "meal-like" recipe has enough substance.
+  const isDessertish = (r: Recipe) =>
+    r.tags.includes("dessert") ||
+    /\b(cake|tart|pudding|ice ?cream|sorbet|brulee|cheesecake|cookie|brownie|muffin|donut|doughnut)\b/i.test(r.name);
+
+  const isBreakfastish = (r: Recipe) =>
+    r.tags.includes("breakfast") ||
+    /\b(pancake|waffle|granola|cereal|porridge|oatmeal|smoothie|french toast)\b/i.test(r.name);
+
+  const isSnackOrSide = (r: Recipe) =>
+    r.tags.includes("snack") ||
+    /\b(dip|chips|salsa|pickled|sauce|dressing|side|condiment|relish|jam|marinade)\b/i.test(r.name);
+
+  // A meal needs real substance: enough ingredients AND enough steps. This
+  // filters out solo-vegetable plates ("just peppers"), drinks, single-item
+  // snacks, etc.
+  const isMealLike = (r: Recipe) =>
+    r.ingredients.length >= 5 && r.steps.length >= 3 && !isSnackOrSide(r);
+
   const pickPool = (predicate: (r: Recipe) => boolean) => {
     const pool = recipes.filter(predicate);
     return pool.length ? pool : recipes;
   };
-  const breakfastPool = pickPool((r) => r.tags.includes("breakfast"));
-  const lunchPool = pickPool((r) => r.tags.includes("quick") || r.tags.includes("salad"));
-  const dinnerPool = pickPool((r) => !r.tags.includes("dessert") && !r.tags.includes("breakfast"));
+
+  const breakfastPool = pickPool(
+    (r) => isMealLike(r) && (isBreakfastish(r) || (!isDessertish(r) && r.tags.includes("quick")))
+  );
+  const lunchPool = pickPool(
+    (r) => isMealLike(r) && !isDessertish(r) && !isBreakfastish(r) &&
+           (r.tags.includes("quick") || r.tags.includes("salad") || r.tags.includes("soup"))
+  );
+  const dinnerPool = pickPool(
+    (r) => isMealLike(r) && !isDessertish(r) && !isBreakfastish(r)
+  );
 
   const usedIds = new Set<string>();
   const pickOne = (pool: Recipe[]): Recipe => {

@@ -120,9 +120,6 @@ export default function HomePage() {
               />
               <div style={{ position: "absolute", inset: 0, background: featured.gradient, opacity: 0.25 }} />
               <div className="featured-card-scrim" />
-              <span style={{ position: "relative", zIndex: 1, fontSize: 96, filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.4))" }}>
-                {featured.emoji}
-              </span>
             </div>
             <div className="featured-card-body">
               <div className="featured-label">✦ Recipe of the day</div>
