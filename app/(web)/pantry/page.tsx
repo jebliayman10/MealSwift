@@ -1,76 +1,116 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent, useEffect } from "react";
+import {
+  useState,
+  useRef,
+  useMemo,
+  useEffect,
+  Suspense,
+  type KeyboardEvent,
+} from "react";
 import { useSearchParams } from "next/navigation";
-import { recipes } from "@/lib/recipes";
+import { recipes, type Recipe } from "@/lib/recipes";
 import { WebRecipeCard } from "@/components/web/WebRecipeCard";
-import { Suspense } from "react";
 
-/* ── Ingredient categories ─────────────────────────────────────────── */
-const CATEGORIES: { label: string; icon: string; color: string; items: string[] }[] = [
-  {
-    label: "Proteins",
-    icon: "🥩",
-    color: "#fee2e2",
-    items: ["chicken", "beef", "salmon", "eggs", "tofu", "lamb", "shrimp", "tuna", "turkey", "pork", "bacon"],
-  },
-  {
-    label: "Dairy",
-    icon: "🥛",
-    color: "#f0f9ff",
-    items: ["cheese", "butter", "milk", "yogurt", "cream", "parmesan", "feta", "mozzarella"],
-  },
-  {
-    label: "Grains",
-    icon: "🌾",
-    color: "#fef9c3",
-    items: ["pasta", "rice", "bread", "flour", "oats", "quinoa", "couscous", "farro", "noodles", "tortillas"],
-  },
-  {
-    label: "Vegetables",
-    icon: "🥦",
-    color: "#dcfce7",
-    items: ["tomatoes", "spinach", "broccoli", "onion", "garlic", "potatoes", "carrot", "pepper", "mushrooms", "zucchini", "eggplant", "leek", "celery"],
-  },
-  {
-    label: "Herbs & Fruit",
-    icon: "🍋",
-    color: "#fef3c7",
-    items: ["lemon", "lime", "basil", "cilantro", "parsley", "avocado", "ginger", "jalapeño", "rosemary", "thyme"],
-  },
-  {
-    label: "Pantry",
-    icon: "🫙",
-    color: "#f3e8ff",
-    items: ["olive oil", "soy sauce", "tahini", "cumin", "paprika", "chilli flakes", "honey", "vinegar", "stock", "miso", "fish sauce"],
-  },
-];
+/* ── Ingredient corpus ───────────────────────────────────────────────────
+   Build a deduped list of every ingredient name across the catalog. The
+   typeahead suggests from this so users can only add ingredients that
+   actually appear in some recipe. */
+const STOP = new Set([
+  "to taste", "for serving", "for garnish", "to serve",
+  "salt", "pepper", "salt and pepper", "water", "oil",
+]);
 
-const ALL_ITEMS = CATEGORIES.flatMap((c) => c.items);
+function normalizeIngredient(raw: string): string {
+  // Strip parenthetical notes + after the first comma ("chicken breast, cubed")
+  return raw
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .split(",")[0]
+    .trim();
+}
 
+const INGREDIENT_CORPUS: string[] = (() => {
+  const counts = new Map<string, number>();
+  for (const r of recipes) {
+    for (const ing of r.ingredients) {
+      const n = normalizeIngredient(ing.name);
+      if (!n || n.length < 2 || STOP.has(n)) continue;
+      counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+  }
+  // Sort by frequency (most-used ingredients surface first in autocomplete)
+  return [...counts.entries()]
+    .filter(([, c]) => c >= 2) // skip one-off names — too noisy
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+})();
+
+/* ── Smart ranking ───────────────────────────────────────────────────────
+   For each recipe, compute:
+     • matched   = how many of the recipe's ingredients the user has
+     • coverage  = matched / recipe.ingredients.length   (0..1)
+     • missing   = recipe.ingredients.length - matched
+   A user with 5 ingredients picks a recipe that uses most of them and
+   doesn't need 10 more. Sort by coverage DESC, then by `missing` ASC. */
+interface Scored {
+  recipe: Recipe;
+  matched: number;
+  coverage: number;
+  missing: number;
+}
+
+function rankRecipes(have: string[]): Scored[] {
+  if (have.length === 0) return [];
+  const haveLower = have.map((h) => h.toLowerCase());
+  const out: Scored[] = [];
+  for (const r of recipes) {
+    let matched = 0;
+    for (const ing of r.ingredients) {
+      const n = normalizeIngredient(ing.name);
+      if (haveLower.some((h) => n.includes(h) || h.includes(n))) matched++;
+    }
+    if (matched === 0) continue;
+    const total = r.ingredients.length || 1;
+    out.push({
+      recipe: r,
+      matched,
+      coverage: matched / total,
+      missing: total - matched,
+    });
+  }
+  return out.sort((a, b) =>
+    b.coverage - a.coverage || a.missing - b.missing || b.matched - a.matched
+  );
+}
+
+const COVERAGE_THRESHOLD = 2 / 3; // "first picks need at least 2/3 of ingredients"
+
+/* ── Page ────────────────────────────────────────────────────────────── */
 function PantryContent() {
   const searchParams = useSearchParams();
-  const initialIngredients = searchParams.get("ingredients")?.split(",").filter(Boolean) ?? [];
+  const initial = searchParams.get("ingredients")?.split(",").filter(Boolean) ?? [];
 
-  const [chips, setChips]       = useState<string[]>(initialIngredients);
+  const [chips, setChips] = useState<string[]>(initial);
   const [inputVal, setInputVal] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const wrapRef  = useRef<HTMLDivElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   /* Close dropdown on outside click */
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node))
+    const onClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
   const addChip = (val: string) => {
     const t = val.trim().toLowerCase();
-    if (t && !chips.includes(t)) setChips((prev) => [...prev, t]);
+    if (t && !chips.includes(t)) setChips((p) => [...p, t]);
     setInputVal("");
     setDropdownOpen(false);
     inputRef.current?.focus();
@@ -78,96 +118,221 @@ function PantryContent() {
 
   const removeChip = (chip: string) => setChips((p) => p.filter((c) => c !== chip));
 
+  /* Autocomplete suggestions from the real ingredient corpus */
+  const suggestions = useMemo(() => {
+    const q = inputVal.trim().toLowerCase();
+    if (!q) return [];
+    return INGREDIENT_CORPUS
+      .filter((n) => n.includes(q) && !chips.includes(n))
+      .slice(0, 8);
+  }, [inputVal, chips]);
+
   const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if ((e.key === "Enter" || e.key === ",") && inputVal.trim()) {
       e.preventDefault();
-      addChip(typeaheadMatches.length > 0 ? typeaheadMatches[0] : inputVal);
+      // Prefer the first suggestion if it starts with what the user typed,
+      // otherwise add their raw input as a free-form ingredient.
+      addChip(suggestions.length > 0 ? suggestions[0] : inputVal);
     }
-    if (e.key === "Backspace" && !inputVal && chips.length)
+    if (e.key === "Backspace" && !inputVal && chips.length) {
       setChips((p) => p.slice(0, -1));
+    }
     if (e.key === "Escape") setDropdownOpen(false);
   };
 
-  const typeaheadMatches = inputVal.trim().length > 0
-    ? ALL_ITEMS.filter((s) =>
-        s.toLowerCase().includes(inputVal.toLowerCase()) && !chips.includes(s)
-      )
-    : [];
-
-  /* Live recipe matching */
-  const allWithCount = recipes.map((r) => {
-    const matchCount = r.ingredients.filter((ing) =>
-      chips.some((chip) => ing.name.toLowerCase().includes(chip))
-    ).length;
-    return { recipe: r, matchCount };
-  });
-
-  const hasChips  = chips.length > 0;
-  const displayed = hasChips
-    ? [...allWithCount].sort((a, b) => b.matchCount - a.matchCount)
-    : allWithCount;
-  const topCount  = allWithCount.filter((m) => m.matchCount > 0).length;
+  /* Live recipe ranking — recomputed when chips change */
+  const ranked = useMemo(() => rankRecipes(chips), [chips]);
+  const great = ranked.filter((s) => s.coverage >= COVERAGE_THRESHOLD).slice(0, 5);
+  const more = ranked.filter((s) => !great.some((g) => g.recipe.id === s.recipe.id)).slice(0, 24);
 
   return (
     <>
-      {/* ── Hero ────────────────────────────────────────── */}
-      <section className="pantry-page-hero">
-        <div className="web-container">
-          <h1 className="pantry-page-heading">
-            Cook from what<br /><em>you already have</em>
+      {/* ── Hero ────────────────────────────────────────────── */}
+      <section
+        style={{
+          background:
+            "linear-gradient(135deg, #fff7ed 0%, #ffedd5 50%, #fed7aa 100%)",
+          padding: "56px 24px 40px",
+          borderBottom: "1px solid #fed7aa",
+        }}
+      >
+        <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#ea580c",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: 10,
+            }}
+          >
+            What&apos;s in your kitchen?
+          </div>
+          <h1
+            style={{
+              fontFamily: "var(--font-d)",
+              fontSize: 36,
+              fontWeight: 800,
+              margin: "0 0 8px",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.1,
+            }}
+          >
+            Cook from what you already have
           </h1>
-          <p className="pantry-page-sub">
-            Add ingredients below — recipes update instantly as you build your pantry.
+          <p
+            style={{
+              color: "#6b7280",
+              margin: "0 0 28px",
+              fontSize: 15,
+              maxWidth: 520,
+              marginInline: "auto",
+              lineHeight: 1.5,
+            }}
+          >
+            Type an ingredient — we&apos;ll suggest what you can make. The more
+            ingredients you add, the better the matches.
           </p>
 
-          {/* ── Search bar ──────────────────────────────── */}
-          <div className="pantry-search-wrap" ref={wrapRef}>
-            <div className="pantry-search-bar">
-              <span className="pantry-search-icon-left">🔍</span>
+          {/* Search box */}
+          <div
+            ref={wrapRef}
+            style={{ position: "relative", maxWidth: 560, margin: "0 auto" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: "#fff",
+                border: "1.5px solid #fdba74",
+                borderRadius: 14,
+                padding: "12px 16px",
+                boxShadow: "0 2px 14px rgba(249, 115, 22, 0.08)",
+              }}
+              onClick={() => inputRef.current?.focus()}
+            >
+              <span style={{ fontSize: 18 }}>🔍</span>
               <input
                 ref={inputRef}
-                className="pantry-search-field"
-                placeholder="Search an ingredient… (Enter to add)"
                 value={inputVal}
                 onChange={(e) => {
                   setInputVal(e.target.value);
                   setDropdownOpen(e.target.value.trim().length > 0);
                 }}
                 onKeyDown={handleKey}
-                onFocus={() => { if (inputVal.trim()) setDropdownOpen(true); }}
+                onFocus={() => {
+                  if (inputVal.trim()) setDropdownOpen(true);
+                }}
+                placeholder={
+                  chips.length === 0
+                    ? "Type an ingredient (e.g. onion, chicken, tomato)…"
+                    : "Add another ingredient…"
+                }
                 autoComplete="off"
+                style={{
+                  flex: 1,
+                  border: "none",
+                  outline: "none",
+                  fontSize: 16,
+                  background: "transparent",
+                  color: "#1a1a1a",
+                  minWidth: 0,
+                }}
               />
               {inputVal.trim() && (
                 <button
-                  className="pantry-search-add-btn"
-                  onMouseDown={(e) => { e.preventDefault(); addChip(inputVal); }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    addChip(suggestions[0] ?? inputVal);
+                  }}
+                  style={{
+                    background: "#f97316",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
                 >
-                  + Add
+                  Add
                 </button>
               )}
             </div>
 
-            {/* Typeahead dropdown */}
-            {dropdownOpen && typeaheadMatches.length > 0 && (
-              <div className="pantry-typeahead-dropdown">
-                {typeaheadMatches.slice(0, 8).map((match, i) => {
-                  const idx    = match.toLowerCase().indexOf(inputVal.toLowerCase());
-                  const before = match.slice(0, idx);
-                  const hl     = match.slice(idx, idx + inputVal.length);
-                  const after  = match.slice(idx + inputVal.length);
+            {/* Autocomplete dropdown */}
+            {dropdownOpen && suggestions.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  left: 0,
+                  right: 0,
+                  background: "#fff",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  boxShadow: "0 8px 30px rgba(0,0,0,0.10)",
+                  overflow: "hidden",
+                  zIndex: 50,
+                }}
+              >
+                {suggestions.map((s) => {
+                  const q = inputVal.toLowerCase();
+                  const idx = s.indexOf(q);
                   return (
                     <button
-                      key={match}
-                      className={`pantry-typeahead-item${i === 0 ? " first" : ""}`}
-                      onMouseDown={(e) => { e.preventDefault(); addChip(match); }}
+                      key={s}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        addChip(s);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        width: "100%",
+                        padding: "10px 16px",
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        fontSize: 14,
+                        color: "#1a1a1a",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "#fff7ed")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
-                      <span className="pantry-typeahead-basket">🧺</span>
-                      <span className="pantry-typeahead-label">
-                        {before}
-                        <strong>{hl}</strong>
-                        {after}
+                      <span style={{ fontSize: 16 }}>🧺</span>
+                      <span style={{ flex: 1 }}>
+                        {idx > -1 ? (
+                          <>
+                            {s.slice(0, idx)}
+                            <strong style={{ color: "#ea580c" }}>
+                              {s.slice(idx, idx + q.length)}
+                            </strong>
+                            {s.slice(idx + q.length)}
+                          </>
+                        ) : (
+                          s
+                        )}
                       </span>
-                      <span className="pantry-typeahead-hint">↵ add</span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "#9ca3af",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        ↵ add
+                      </span>
                     </button>
                   );
                 })}
@@ -175,105 +340,157 @@ function PantryContent() {
             )}
           </div>
 
-          {/* ── Added chips ─────────────────────────────── */}
+          {/* Added chips */}
           {chips.length > 0 && (
-            <div className="pantry-chips-row">
-              <span className="pantry-chips-label">{chips.length} ingredient{chips.length !== 1 ? "s" : ""} added:</span>
-              <div className="pantry-chips-list">
-                {chips.map((chip) => (
-                  <span key={chip} className="pantry-chip-lg">
-                    {chip}
-                    <button
-                      className="pantry-chip-lg-remove"
-                      onClick={() => removeChip(chip)}
-                      aria-label={`Remove ${chip}`}
-                    >×</button>
-                  </span>
-                ))}
-                <button className="pantry-clear-btn" onClick={() => setChips([])}>
-                  Clear all
-                </button>
-              </div>
+            <div
+              style={{
+                marginTop: 18,
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                justifyContent: "center",
+              }}
+            >
+              {chips.map((chip) => (
+                <span
+                  key={chip}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "#fff",
+                    border: "1px solid #fdba74",
+                    borderRadius: 999,
+                    padding: "6px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#7c2d12",
+                  }}
+                >
+                  {chip}
+                  <button
+                    onClick={() => removeChip(chip)}
+                    aria-label={`Remove ${chip}`}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#9a3412",
+                      cursor: "pointer",
+                      fontSize: 16,
+                      lineHeight: 1,
+                      padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={() => setChips([])}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#9a3412",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  padding: "6px 8px",
+                }}
+              >
+                Clear all
+              </button>
             </div>
           )}
         </div>
       </section>
 
-      {/* ── Category sections ─────────────────────────────── */}
-      <div className="pantry-categories-wrapper">
-        <div className="web-container">
-          <div className="pantry-categories-header">
-            <h2 className="pantry-categories-title">Browse by category</h2>
-            <p className="pantry-categories-sub">Click any ingredient to add it to your pantry</p>
+      {/* ── Results ─────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px 80px" }}>
+        {chips.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              color: "#6b7280",
+            }}
+          >
+            <span style={{ fontSize: 48 }}>🥕</span>
+            <p style={{ marginTop: 12, fontWeight: 600, fontSize: 16 }}>
+              Add an ingredient to get started
+            </p>
+            <p style={{ marginTop: 4, fontSize: 13 }}>
+              Try <em>chicken</em>, <em>tomato</em>, or <em>pasta</em>.
+            </p>
           </div>
-
-          {CATEGORIES.map((cat) => {
-            const available = cat.items.filter((item) => !chips.includes(item));
-            const addedCount = cat.items.length - available.length;
-            return (
-              <div key={cat.label} className="pantry-category-section">
-                <div className="pantry-category-header">
-                  <div className="pantry-category-label">
-                    <span className="pantry-category-icon" style={{ background: cat.color }}>
-                      {cat.icon}
+        ) : ranked.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              color: "#6b7280",
+            }}
+          >
+            <span style={{ fontSize: 48 }}>🤔</span>
+            <p style={{ marginTop: 12, fontWeight: 600 }}>
+              Nothing matches yet — try a more common ingredient.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Great matches (≥2/3 coverage) */}
+            {great.length > 0 && (
+              <section style={{ marginBottom: 40 }}>
+                <div className="web-section-header">
+                  <h2 className="web-section-title">
+                    ✨ Best matches{" "}
+                    <span style={{ color: "#9ca3af", fontWeight: 500, fontSize: 14 }}>
+                      ({great.length})
                     </span>
-                    <span className="pantry-category-name">{cat.label}</span>
-                    {addedCount > 0 && (
-                      <span className="pantry-category-added-badge">{addedCount} added ✓</span>
-                    )}
-                  </div>
+                  </h2>
+                  <span style={{ fontSize: 13, color: "var(--stone-400)", fontWeight: 500 }}>
+                    You have at least 2/3 of the ingredients
+                  </span>
                 </div>
-                <div className="pantry-category-pills">
-                  {available.length === 0 ? (
-                    <span className="pantry-category-all-added">All {cat.label.toLowerCase()} added ✓</span>
-                  ) : (
-                    available.map((item) => (
-                      <button
-                        key={item}
-                        className="pantry-pill-btn"
-                        onClick={() => addChip(item)}
-                      >
-                        + {item}
-                      </button>
-                    ))
-                  )}
+                <div className="recipe-grid">
+                  {great.map(({ recipe, matched, missing }) => (
+                    <WebRecipeCard
+                      key={recipe.id}
+                      recipe={recipe}
+                      matchBadge={`${matched}/${matched + missing}`}
+                    />
+                  ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── Results — live ──────────────────────────────── */}
-      <div className="pantry-results-section">
-        <div className="web-container">
-          <div className="web-section-header">
-            <h2 className="web-section-title">
-              {hasChips
-                ? topCount > 0
-                  ? `${topCount} recipe${topCount !== 1 ? "s" : ""} match your pantry`
-                  : "Showing all recipes"
-                : "All recipes"}
-            </h2>
-            {hasChips && topCount > 0 && (
-              <span style={{ fontSize: 13, color: "var(--stone-400)", fontWeight: 500 }}>
-                Sorted by best ingredient match
-              </span>
+              </section>
             )}
-          </div>
 
-          <div className="pantry-results-grid">
-            {displayed.map(({ recipe, matchCount }) => (
-              <WebRecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                matchBadge={hasChips && matchCount > 0
-                  ? `${matchCount}/${recipe.ingredients.length} match`
-                  : undefined}
-              />
-            ))}
-          </div>
-        </div>
+            {/* Wider matches */}
+            {more.length > 0 && (
+              <section>
+                <div className="web-section-header">
+                  <h2 className="web-section-title">
+                    {great.length > 0 ? "Need a few more" : "Closest matches"}{" "}
+                    <span style={{ color: "#9ca3af", fontWeight: 500, fontSize: 14 }}>
+                      ({more.length})
+                    </span>
+                  </h2>
+                  <span style={{ fontSize: 13, color: "var(--stone-400)", fontWeight: 500 }}>
+                    You&apos;ll need to buy more ingredients
+                  </span>
+                </div>
+                <div className="recipe-grid">
+                  {more.map(({ recipe, matched, missing }) => (
+                    <WebRecipeCard
+                      key={recipe.id}
+                      recipe={recipe}
+                      matchBadge={`${matched}/${matched + missing} · need ${missing}`}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </div>
     </>
   );
