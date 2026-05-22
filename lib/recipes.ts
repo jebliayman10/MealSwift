@@ -1264,12 +1264,26 @@ export const INGREDIENT_CORPUS: string[] = (() => {
     .map(([name]) => name);
 })();
 
-/** Returns ingredients matching a typed query, deduped and capped. */
+/** Returns ingredients matching a typed query, deduped and capped.
+ *
+ *  The corpus is stored in singular form ("chicken wing", "tomato"), so we
+ *  also try the singularised query — that way typing "wings" or "tomatoes"
+ *  surfaces the same suggestions. Last word is singularised individually so
+ *  "chicken wings" → "chicken wing" works too. */
 export function suggestIngredients(query: string, exclude: string[] = [], limit = 8): string[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
+
+  const parts = q.split(" ");
+  parts[parts.length - 1] = singularize(parts[parts.length - 1]);
+  const qSing = parts.join(" ");
+
   return INGREDIENT_CORPUS
-    .filter((n) => n.includes(q) && !exclude.includes(n))
+    .filter(
+      (n) =>
+        !exclude.includes(n) &&
+        (n.includes(q) || (qSing !== q && n.includes(qSing))),
+    )
     .slice(0, limit);
 }
 
